@@ -92,7 +92,7 @@ export enum API_CONSTANTS {
 
   // ------------------------------------ cluster configuration ------------------------------------
   CLUSTER_CONFIGURATION = '/api/clusterConfiguration/list',
-  CLUSTER_CONFIGURATION_LIST_ENABLE_ALL = '/api/clusterConfiguration/listEnabledAll',
+  CLUSTER_CONFIGURATION_LIST_ALL = '/api/clusterConfiguration/listAll',
   CLUSTER_CONFIGURATION_ADD_OR_UPDATE = '/api/clusterConfiguration/saveOrUpdate',
   CLUSTER_CONFIGURATION_DELETE = '/api/clusterConfiguration/delete',
   CLUSTER_CONFIGURATION_ENABLE = '/api/clusterConfiguration/enable',
@@ -218,6 +218,7 @@ export enum API_CONSTANTS {
   STUDIO_GET_MSSCHEMA_INFO = '/api/studio/getMSSchemaInfo',
   STUDIO_GET_MSCATALOGS = '/api/studio/getMSCatalogs',
   STUDIO_GET_MSCOLUMNS = '/api/studio/getMSColumns',
+  STUDIO_DROP_MSTABLE = '/api/studio/dropMSTable',
 
   // ------------------------------------ savepoints  ------------------------------------
   GET_SAVEPOINT_LIST_BY_TASK_ID = '/api/savepoints/listSavepointsByTaskId',
@@ -283,6 +284,7 @@ export enum API_CONSTANTS {
   CATALOGUE_GET_CATALOGUE_SORT_TYPE_DATA = '/api/catalogue/getCatalogueSortType',
   GET_JOB_VERSION = '/api/task/version',
   RESTART_TASK = '/api/task/restartTask',
+  ROLLBACK_TASK = '/api/task/rollbackTask',
   SAVEPOINT = '/api/task/savepoint',
   RESTART_TASK_FROM_CHECKPOINT = '/api/task/selectSavePointRestartTask',
   LIST_FLINK_SQL_ENV = '/api/task/listFlinkSQLEnv',
@@ -304,5 +306,16 @@ export enum API_CONSTANTS {
   FLINK_CONF_CONFIG_OPTIONS = '/api/flinkConf/configOptions',
 
   // ------------------------------------ suggestion ------------------------------------
-  SUGGESTION_QUERY_ALL_SUGGESTIONS = '/api/suggestion/queryAllSuggestions'
+  SUGGESTION_QUERY_ALL_SUGGESTIONS = '/api/suggestion/queryAllSuggestions',
+
+  // ------------------------------------ approval ------------------------------------
+  TASK_APPROVAL_CREATE = '/api/approval/createTaskApproval',
+  GET_REVIEWERS = '/api/approval/getReviewers',
+  APPROVAL_SUBMIT = '/api/approval/submit',
+  APPROVAL_REJECT = '/api/approval/reject',
+  APPROVAL_APPROVE = '/api/approval/approve',
+  APPROVAL_WITHDRAW = '/api/approval/withdraw',
+  APPROVAL_CANCEL = '/api/approval/cancel',
+  GET_SUBMITTED_APPROVAL = '/api/approval/getSubmittedApproval',
+  GET_REVIEW_REQUIRED_APPROVAL = '/api/approval/getApprovalToBeReviewed'
 }

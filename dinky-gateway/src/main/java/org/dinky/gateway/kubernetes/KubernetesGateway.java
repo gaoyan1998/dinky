@@ -31,9 +31,11 @@ import org.dinky.gateway.result.SavePointResult;
 import org.dinky.gateway.result.TestResult;
 import org.dinky.utils.TextUtil;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.configuration.DeploymentOptions;
+import org.apache.flink.configuration.DeploymentOptionsInternal;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.configuration.PipelineOptions;
 import org.apache.flink.kubernetes.KubernetesClusterClientFactory;
@@ -45,15 +47,16 @@ import org.apache.flink.python.PythonOptions;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import alluxio.shaded.client.org.apache.commons.lang3.StringUtils;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.text.StrFormatter;
 import cn.hutool.core.util.ReflectUtil;
+import cn.hutool.core.util.StrUtil;
 import io.fabric8.kubernetes.api.model.Pod;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -86,6 +89,12 @@ public abstract class KubernetesGateway extends AbstractGateway {
 
     protected void initConfig() {
         flinkConfigPath = config.getClusterConfig().getFlinkConfigPath();
+
+        // The user-defined flink conf path overrides the flink conf path parameter.
+        if (StringUtils.isNotBlank(flinkConfigPath)) {
+            addConfigParas(DeploymentOptionsInternal.CONF_DIR, flinkConfigPath);
+        }
+
         flinkConfig = config.getFlinkConfig();
         String jobName = flinkConfig.getJobName();
         if (TextUtil.isEmpty(jobName)) {
@@ -96,7 +105,6 @@ public abstract class KubernetesGateway extends AbstractGateway {
                     + " is not Valid. In Kubernetes mode, task names must start and end with a lowercase letter or a digit, "
                     + "and can contain lowercase letters, digits, dots, and hyphens in between.");
         }
-        k8sConfig = config.getKubernetesConfig();
 
         configuration.set(CoreOptions.CLASSLOADER_RESOLVE_ORDER, "parent-first");
         try {
@@ -106,8 +114,16 @@ public abstract class KubernetesGateway extends AbstractGateway {
             logger.warn("load locale config yaml failed：{},Skip config it", e.getMessage());
         }
 
+        k8sConfig = config.getKubernetesConfig();
+        // 兼容kubernetes.container.image 和 kubernetes.container.image.ref
+        Map<String, String> k8sConfiguration = k8sConfig.getConfiguration();
+        final String oldContainerImageKey = "kubernetes.container.image";
+        if (k8sConfiguration.containsKey(oldContainerImageKey)) {
+            String containerImageValue = k8sConfiguration.get(oldContainerImageKey);
+            k8sConfiguration.put(KubernetesConfigOptions.CONTAINER_IMAGE.key(), containerImageValue);
+        }
         // -------------------Note: the sequence can not be changed, priority problem----------------
-        addConfigParas(k8sConfig.getConfiguration());
+        addConfigParas(k8sConfiguration);
         addConfigParas(flinkConfig.getConfiguration());
         // -------------------------------------------
         addConfigParas(DeploymentOptions.TARGET, getType().getLongValue());
@@ -150,7 +166,7 @@ public abstract class KubernetesGateway extends AbstractGateway {
     boolean isValidTaskName(String jobName) {
         String JOB_NAME_PATTERN = "^[a-z0-9][a-z0-9.-]*[a-z0-9]$";
         Pattern pattern = Pattern.compile(JOB_NAME_PATTERN);
-        if (StringUtils.isBlank(jobName)) {
+        if (StrUtil.isBlank(jobName)) {
             return false;
         }
         Matcher matcher = pattern.matcher(jobName);
@@ -222,9 +238,9 @@ public abstract class KubernetesGateway extends AbstractGateway {
             }
             return TestResult.success();
         } catch (Exception e) {
-            logger.error(Status.GAETWAY_KUBERNETS_TEST_FAILED.getMessage(), e);
+            logger.error(Status.GATEWAY_KUBERNETES_TEST_FAILED.getMessage(), e);
             return TestResult.fail(
-                    StrFormatter.format("{}:{}", Status.GAETWAY_KUBERNETS_TEST_FAILED.getMessage(), e.getMessage()));
+                    StrFormatter.format("{}:{}", Status.GATEWAY_KUBERNETES_TEST_FAILED.getMessage(), e.getMessage()));
         } finally {
             close();
         }

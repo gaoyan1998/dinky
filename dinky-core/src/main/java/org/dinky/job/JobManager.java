@@ -37,7 +37,6 @@ import org.dinky.data.result.ErrorResult;
 import org.dinky.data.result.ExplainResult;
 import org.dinky.data.result.IResult;
 import org.dinky.data.result.ResultBuilder;
-import org.dinky.data.result.ResultPool;
 import org.dinky.data.result.SelectResult;
 import org.dinky.executor.Executor;
 import org.dinky.executor.ExecutorConfig;
@@ -52,6 +51,10 @@ import org.dinky.gateway.enums.SavePointType;
 import org.dinky.gateway.result.GatewayResult;
 import org.dinky.gateway.result.SavePointResult;
 import org.dinky.gateway.result.TestResult;
+import org.dinky.sandbox.Sandbox;
+import org.dinky.sandbox.SandboxFactory;
+import org.dinky.sandbox.metadata.TableId;
+import org.dinky.sandbox.metadata.TableInfo;
 import org.dinky.trans.Operations;
 import org.dinky.trans.parse.AddFileSqlParseStrategy;
 import org.dinky.trans.parse.AddJarSqlParseStrategy;
@@ -77,13 +80,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.lang.Tuple;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -242,18 +244,14 @@ public class JobManager {
 
     @ProcessStep(type = ProcessStepType.SUBMIT_EXECUTE)
     public JobResult executeJarSql(String statement) throws Exception {
-        List<String> statements = Arrays.stream(SqlUtil.getStatements(statement))
-                .map(t -> executor.pretreatStatement(t))
-                .collect(Collectors.toList());
-        statement = String.join(";\n", statements);
-        jobStatementPlan = Explainer.build(this).parseStatements(SqlUtil.getStatements(statement));
-        jobStatementPlan.setSubmissionMode(config.isSubmissionMode());
-        jobStatementPlan.buildFinalStatement();
         job = Job.build(runMode, config, executorConfig, executor, statement, useGateway);
         ready();
-        JobRunnerFactory jobRunnerFactory = JobRunnerFactory.create(this);
         try {
+            jobStatementPlan = Explainer.build(this).parseStatements(SqlUtil.getStatements(statement));
+            jobStatementPlan.buildFinalStatement();
+            JobRunnerFactory jobRunnerFactory = JobRunnerFactory.create(this);
             for (JobStatement jobStatement : jobStatementPlan.getJobStatementList()) {
+                setCurrentSql(jobStatement.getStatement());
                 jobRunnerFactory.getJobRunner(jobStatement.getStatementType()).run(jobStatement);
             }
             if (job.isFailed()) {
@@ -282,10 +280,10 @@ public class JobManager {
         ready();
         try {
             jobStatementPlan = Explainer.build(this).parseStatements(SqlUtil.getStatements(statement));
-            jobStatementPlan.setSubmissionMode(config.isSubmissionMode());
             jobStatementPlan.buildFinalStatement();
             JobRunnerFactory jobRunnerFactory = JobRunnerFactory.create(this);
             for (JobStatement jobStatement : jobStatementPlan.getJobStatementList()) {
+                setCurrentSql(jobStatement.getStatement());
                 jobRunnerFactory.getJobRunner(jobStatement.getStatementType()).run(jobStatement);
             }
             job.setEndTime(LocalDateTime.now());
@@ -345,12 +343,16 @@ public class JobManager {
     }
 
     public static SelectResult getJobData(String jobId) {
-        SelectResult selectResult = ResultPool.get(jobId);
-        if (Objects.isNull(selectResult) || selectResult.isDestroyed()) {
+        Sandbox sandbox = SandboxFactory.getSandbox("MemorySandbox");
+        TableId tableId = TableId.withPrivate(jobId);
+        if (sandbox.existTable(tableId)) {
+            TableInfo tableInfo = sandbox.getTableInfo(tableId);
+            List<Tuple> data = sandbox.getData(tableId);
+            return SelectResult.buildBySandbox(jobId, tableInfo, data);
+        } else {
             JobReadHandler readHandler = JobHandler.build().getReadHandler();
             return readHandler.readResultDataFromStorage(Integer.parseInt(jobId));
         }
-        return selectResult;
     }
 
     public ExplainResult explainSql(String statement) {

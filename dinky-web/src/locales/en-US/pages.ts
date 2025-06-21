@@ -166,6 +166,10 @@ export default {
   'datastudio.sqlTask.flinkJar.args.tip': 'Please enter the program running parameters (args)',
   'datastudio.sqlTask.flinkJar.allowNonRestoredState':
     'Ignore undeclared state (allowNonRestoredState)',
+  'datastudio.catalog.delete.table': 'Drop [{catalog}.{database}.{table}]',
+  'datastudio.catalog.delete.table.confirm':
+    'Drop statement will be called to delete the table. \nPlease operate with caution! This operation is irreversible!!!  \n\t\t\t\tConfirm to delete?',
+
   /**
    *
    * devops
@@ -965,6 +969,26 @@ export default {
   'rc.doc.typePlaceholder': 'Please select the function type this Document belongs to!',
   'rc.doc.version': 'Version',
   'rc.doc.versionPlaceholder': 'Please select the version this Document belongs to!',
+  'rc.doc.type.codeSnippetOrTemplate': 'Code Snippet/Template',
+  'rc.doc.type.flinkParam': 'Flink Parameter',
+  'rc.doc.type.functionOrUDF': 'Function/UDF',
+  'rc.doc.type.other': 'Other',
+  'rc.doc.function.type.compare': 'Comparison Function',
+  'rc.doc.function.type.logical': 'Logical Function',
+  'rc.doc.function.type.arithmetic': 'Arithmetic Function',
+  'rc.doc.function.type.string': 'String Function',
+  'rc.doc.function.type.time': 'Time Function',
+  'rc.doc.function.type.conditional': 'Conditional Function',
+  'rc.doc.function.type.typeConver': 'Type Conversion Function',
+  'rc.doc.function.type.collection': 'Collection Function',
+  'rc.doc.function.type.valueConstruction': 'Value Construction Function',
+  'rc.doc.function.type.valueAccess': 'Value Access Function',
+  'rc.doc.function.type.group': 'Grouping Function',
+  'rc.doc.function.type.hash': 'Hash Function',
+  'rc.doc.function.type.aggregate': 'Aggregate Function',
+  'rc.doc.function.type.column': 'Column Function',
+  'rc.doc.function.type.tableAggregate': 'Table-Valued Aggregate Function',
+  'rc.doc.function.type.other': 'Other Function',
   'rc.ds.application': 'Application',
   'rc.ds.autoIncrement': 'Autoincrement',
   'rc.ds.backup': 'Backup',
@@ -982,6 +1006,8 @@ export default {
   'rc.ds.default': 'Default Value',
   'rc.ds.delete': 'Delete DataSource',
   'rc.ds.deleteConfirm': 'Are you sure to delete this DataSource? ',
+  'rc.ds.total.db': 'Total {total} databases',
+  'rc.ds.total.table': 'Total {total} tables',
   'rc.ds.detail.tag.console': 'Console',
   'rc.ds.detail.tag.desc': 'Description',
   'rc.ds.detail.tag.gensql': 'Generate SQL',
@@ -1247,6 +1273,8 @@ export default {
     'You can enter your username/nickname for search, support fuzzy queries, enter keywords and press enter to complete the search',
   'sys.ldap.settings.loadable': 'Whether it can be imported',
   'sys.setting.ingress': 'Ingress configuration',
+  'sys.setting.approval': 'Approval Configuration',
+  'sys.setting.approval.tooltip': 'Approval Configuration for task submit',
   /**
    *
    * tenant
@@ -1399,5 +1427,35 @@ export default {
   'datastudio.toolbar.rightClick.hideToolbarDesc': 'hides the toolbar window name',
   'datastudio.toolbar.rightClick.showToolbarDesc': 'displays the toolbar window name',
   'datastudio.toolbar.rightClick.closeCompact': 'turn off compact mode',
-  'datastudio.toolbar.rightClick.openCompact': 'turn on compact mode'
+  'datastudio.toolbar.rightClick.openCompact': 'turn on compact mode',
+
+  'approval.dinky.not.open':
+    'Dinky approval is not enabled, please go to the Setting Center -> Approval Configuration switch to open',
+  'approval.reviewList': 'Review List',
+  'approval.submitList': 'Submit List',
+  'approval.id': 'Approval Id',
+  'approval.taskId': 'Task Id',
+  'approval.previousTaskVersion': 'Previous Task Version Id',
+  'approval.currentTaskVersion': 'Current Task Version Id',
+  'approval.status': 'Approval Status',
+  'approval.submitterName': 'Submitter Name',
+  'approval.submitterComment': 'Submitter Comment',
+  'approval.reviewerName': 'Reviewer Name',
+  'approval.reviewerComment': 'Reviewer Comment',
+  'approval.status.created': 'CREATED',
+  'approval.status.withdrawn': 'WITHDRAWN',
+  'approval.status.submitted': 'SUBMITTED',
+  'approval.status.approved': 'APPROVED',
+  'approval.status.rejected': 'REJECTED',
+  'approval.status.canceled': 'CANCELED',
+  'approval.operation.create': 'Create Approval',
+  'approval.operation.withdraw': 'Withdraw Approval',
+  'approval.operation.submit': 'Submit Approval',
+  'approval.operation.approve': 'Approve Approval',
+  'approval.operation,reject': 'Reject Approval',
+  'approval.operation.cancel': 'Cancel Approval',
+  'approval.reviewer.required': 'Please select a reviewer',
+  'approval.submit.comment': 'Submit Remark',
+  'approval.review.comment': 'Review Comment',
+  'approval.taskInfo': 'Task Info'
 };

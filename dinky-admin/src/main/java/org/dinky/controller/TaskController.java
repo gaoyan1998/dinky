@@ -19,6 +19,8 @@
 
 package org.dinky.controller;
 
+import org.dinky.config.Dialect;
+import org.dinky.data.annotations.CheckTaskApproval;
 import org.dinky.data.annotations.CheckTaskOwner;
 import org.dinky.data.annotations.ExecuteProcess;
 import org.dinky.data.annotations.Log;
@@ -44,6 +46,7 @@ import org.dinky.gateway.enums.SavePointType;
 import org.dinky.gateway.result.SavePointResult;
 import org.dinky.job.JobResult;
 import org.dinky.mybatis.annotation.Save;
+import org.dinky.service.ApprovalService;
 import org.dinky.service.TaskService;
 import org.dinky.trans.ExecuteJarParseStrategyUtil;
 import org.dinky.utils.SqlUtil;
@@ -97,6 +100,7 @@ public class TaskController {
     @ApiOperation("Submit Task")
     @Log(title = "Submit Task", businessType = BusinessType.SUBMIT)
     @ExecuteProcess(type = ProcessType.FLINK_SUBMIT)
+    @CheckTaskApproval(checkParam = TaskId.class, checkInterface = ApprovalService.class)
     @CheckTaskOwner(checkParam = TaskId.class, checkInterface = TaskService.class)
     public Result<JobResult> submitTask(@TaskId @ProcessId @RequestParam Integer id) throws Exception {
         JobResult jobResult =
@@ -210,6 +214,9 @@ public class TaskController {
     @CheckTaskOwner(checkParam = TaskId.class, checkInterface = TaskService.class)
     public Result<Void> saveOrUpdateTask(@Validated({Save.class}) @RequestBody TaskSaveDTO task) {
         if (taskService.saveOrUpdateTask(task.toTaskEntity())) {
+            if (Dialect.isUDF(task.getDialect())) {
+                return Result.succeed(Status.UDF_SAVE_SUCCESS_PLACEHOLDER);
+            }
             return Result.succeed(Status.SAVE_SUCCESS);
         } else {
             return Result.failed(Status.SAVE_FAILED);

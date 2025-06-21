@@ -26,6 +26,7 @@ import { Monaco } from '@monaco-editor/react';
 import { Panel, PanelGroup } from 'react-resizable-panels';
 import {
   ApartmentOutlined,
+  AuditOutlined,
   BugOutlined,
   CaretRightOutlined,
   ClearOutlined,
@@ -84,6 +85,7 @@ import { DataStudioActionType } from '@/pages/DataStudio/data.d';
 import {
   getDataByParams,
   handleOption,
+  handlePutDataByParams,
   handlePutDataJson,
   queryDataByParams
 } from '@/services/BusinessCrud';
@@ -98,7 +100,7 @@ import CodeEdit from '@/components/CustomEditor/CodeEdit';
 import DiffModal from '@/pages/DataStudio/CenterTabContent/SqlTask/DiffModal';
 import TaskConfig from '@/pages/DataStudio/CenterTabContent/SqlTask/TaskConfig';
 import SelectDb from '@/pages/DataStudio/CenterTabContent/RunToolbar/SelectDb';
-import { SseData, Topic } from '@/models/UseWebSocketModel';
+import { Topic, WsData } from '@/models/UseWebSocketModel';
 import { ResourceInfo } from '@/types/RegCenter/data';
 import { buildResourceTreeDataAtTreeForm } from '@/pages/RegCenter/Resource/components/FileTree/function';
 import { ProFormDependency } from '@ant-design/pro-form';
@@ -109,6 +111,9 @@ import {
   DolphinTaskMinInfo
 } from '@/types/Studio/data';
 import PushDolphin from '@/pages/DataStudio/CenterTabContent/SqlTask/PushDolphin';
+import ApprovalModal from '@/pages/AuthCenter/Approval/components/ApprovalModal';
+import { OperationType } from '@/types/AuthCenter/data.d';
+import { getAllConfig } from '@/pages/Metrics/service';
 
 export type FlinkSqlProps = {
   showDesc: boolean;
@@ -194,6 +199,7 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
     subscribeTopic: model.subscribeTopic
   }));
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [lastVersion, setLastVersion] = useState<number>(currentState.versionId);
 
   const [pushDolphinState, setPushDolphinState] = useState<{
     modalVisible: boolean;
@@ -213,6 +219,16 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
     dolphinDefinitionTask: {},
     currentDinkyTaskValue: {},
     formValuesInfo: {}
+  });
+
+  const [approvalState, setApprovalState] = useState<{
+    enableApproval: boolean;
+    openSubmitModal: boolean;
+    currentApprovalId: number;
+  }>({
+    enableApproval: false,
+    openSubmitModal: false,
+    currentApprovalId: -1
   });
 
   useEffect(() => {
@@ -237,6 +253,7 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
           statement: sqlConvertForm?.initSqlStatement ?? ''
         });
         setOriginStatementValue(sqlConvertForm?.initSqlStatement ?? '');
+        updateCenterTab({ ...props.tabData, params: newParams });
         if (params?.statement && params?.statement !== sqlConvertForm?.initSqlStatement) {
           setDiff([
             { key: 'statement', server: sqlConvertForm?.initSqlStatement, cache: params.statement }
@@ -264,6 +281,17 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
         }
       }
     }
+    // check approval config
+    const allConfig = await getAllConfig();
+    for (const config of allConfig.data.approval) {
+      if (config.key === 'sys.approval.settings.enableTaskSubmitReview') {
+        if (config.value) {
+          // show approval submit button
+          setApprovalState((prevState) => ({ ...prevState, enableApproval: true }));
+        }
+      }
+    }
+
     setLoading(false);
   }, []);
 
@@ -277,7 +305,7 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
     }));
   }, [params]);
   useEffect(() => {
-    return subscribeTopic(Topic.TASK_RUN_INSTANCE, null, (data: SseData) => {
+    return subscribeTopic(Topic.TASK_RUN_INSTANCE, ['RunningTaskId'], (data: WsData) => {
       if (data?.data?.RunningTaskId) {
         setIsRunning(data?.data?.RunningTaskId.includes(params.taskId));
       }
@@ -400,6 +428,25 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
     taskOwnerLockingStrategy
   );
 
+  const handleRollbackVersion = async (taskId: number, versionId: number) => {
+    const result = await handleOption(
+      API_CONSTANTS.ROLLBACK_TASK,
+      l('pages.datastudio.label.version.rollback.flinksql'),
+      {
+        taskId,
+        versionId
+      }
+    );
+    if (result && result.success) {
+      // 更新当前编辑器内的sql语句
+      const task = await getTaskDetails(taskId);
+      if (task) {
+        setOriginStatementValue(task.statement);
+        setCurrentState((prevState) => ({ ...prevState, ...task }));
+      }
+    }
+  };
+
   const rightToolbarItem: TabsProps['items'] = [];
   if (
     isSql(currentState.dialect) ||
@@ -428,6 +475,8 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
           taskId={currentState.taskId}
           statement={currentState.statement}
           updateTime={currentState.updateTime}
+          lastVersionId={lastVersion}
+          rollbackTask={handleRollbackVersion}
         />
       )
     });
@@ -648,11 +697,17 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
       currentState.step = JOB_LIFE_CYCLE.DEVELOP;
     } else {
       await handleSave();
-      await changeTaskLife(
+      const result = await changeTaskLife(
         l('global.table.lifecycle.publishing'),
         currentState.taskId,
         JOB_LIFE_CYCLE.PUBLISH
       );
+      if (result.success) {
+        const taskDetails = await getTaskDetails(currentState.taskId);
+        if (taskDetails) {
+          setLastVersion(taskDetails.versionId);
+        }
+      }
       currentState.step = JOB_LIFE_CYCLE.PUBLISH;
     }
     setCurrentState((prevState) => ({ ...prevState, step: currentState.step }));
@@ -722,6 +777,25 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
     await handlePushDolphinCancel();
   };
 
+  const handleOpenApprovalModal = async () => {
+    // publish first
+    if (JOB_LIFE_CYCLE.PUBLISH != currentState.step) {
+      await handleChangeJobLife();
+    }
+    // create approval
+    const res = await handlePutDataByParams(
+      API_CONSTANTS.TASK_APPROVAL_CREATE,
+      l('approval.operation.create'),
+      { taskId: currentState.taskId }
+    );
+    // open submit modal
+    setApprovalState((prevState) => ({ ...prevState, currentApprovalId: res.data.id }));
+    handleApprovalModalOpenChange(true);
+  };
+
+  const handleApprovalModalOpenChange = (open: boolean) => {
+    setApprovalState((prevState) => ({ ...prevState, openSubmitModal: open }));
+  };
   return (
     <Skeleton
       loading={loading}
@@ -738,6 +812,17 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
         language={matchLanguage(currentState.dialect)}
         fileName={currentState.name}
         onUse={updateTask}
+      />
+      <ApprovalModal
+        open={approvalState.openSubmitModal}
+        title={l('approval.operation.submit')}
+        activeId={approvalState.currentApprovalId}
+        operationType={OperationType.SUBMIT}
+        onOpenChange={handleApprovalModalOpenChange}
+        handleSubmit={async (record) => {
+          await handleOption(API_CONSTANTS.APPROVAL_SUBMIT, l('approval.operation.submit'), record);
+          setApprovalState((prevState) => ({ ...prevState, openSubmitModal: false }));
+        }}
       />
       <Flex vertical style={{ height: 'inherit', width: '100%' }} ref={containerRef}>
         <ProForm
@@ -982,6 +1067,14 @@ export const SqlTask = memo((props: FlinkSqlProps & any) => {
                 hotKeyHandle: (e: KeyboardEvent) => e.ctrlKey && e.key === 'E'
               }}
               onClick={handlePushDolphinOpen}
+            />
+            <RunToolBarButton
+              isShow={approvalState.enableApproval}
+              disabled={isLockTask}
+              showDesc={showDesc}
+              desc={l('approval.operation.create')}
+              icon={<AuditOutlined />}
+              onClick={handleOpenApprovalModal}
             />
           </Flex>
         </ProForm>

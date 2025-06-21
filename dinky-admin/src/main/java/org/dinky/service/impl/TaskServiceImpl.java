@@ -134,11 +134,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.exceptions.ExceptionUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.lang.tree.Tree;
 import cn.hutool.core.lang.tree.TreeNode;
 import cn.hutool.core.lang.tree.TreeUtil;
 import cn.hutool.core.text.StrFormatter;
+import cn.hutool.json.JSONUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -242,7 +245,7 @@ public class TaskServiceImpl extends SuperServiceImpl<TaskMapper, Task> implemen
         if (GatewayType.get(task.getType()).isDeployCluster()) {
             log.info("Init gateway config, type:{}", task.getType());
             FlinkClusterConfig flinkClusterCfg =
-                    clusterCfgService.getFlinkClusterCfg(config.getClusterConfigurationId());
+                    clusterCfgService.getAndCheckEnableFlinkClusterCfg(config.getClusterConfigurationId());
             flinkClusterCfg.getAppConfig().setUserJarParas(buildParams(config.getTaskId()));
             flinkClusterCfg.getAppConfig().setUserJarMainAppClass(CommonConstant.DINKY_APP_MAIN_CLASS);
             config.buildGatewayConfig(flinkClusterCfg);
@@ -568,7 +571,7 @@ public class TaskServiceImpl extends SuperServiceImpl<TaskMapper, Task> implemen
         Integer tenantId = baseMapper.getTenantByTaskId(id);
         Asserts.checkNull(tenantId, Status.TASK_NOT_EXIST.getMessage());
         TenantContextHolder.set(tenantId);
-        log.info("Init task tenan finished..");
+        log.info("Init task tenant finished..");
     }
 
     @Override
@@ -587,7 +590,8 @@ public class TaskServiceImpl extends SuperServiceImpl<TaskMapper, Task> implemen
                 } catch (Throwable e) {
                     throw new BusException(
                             "UDF compilation failed and cannot be published. The error message is as follows:"
-                                    + e.getMessage());
+                                    + ExceptionUtil.stacktraceToOneLineString(e),
+                            e);
                 }
             }
         } else {
@@ -775,7 +779,9 @@ public class TaskServiceImpl extends SuperServiceImpl<TaskMapper, Task> implemen
 
         Task updateTask = new Task();
         BeanUtil.copyProperties(taskVersion, updateTask);
-        BeanUtil.copyProperties(taskVersion.getTaskConfigure(), updateTask);
+        BeanUtil.copyProperties(
+                taskVersion.getTaskConfigure(), updateTask, CopyOptions.create().setIgnoreError(true));
+        updateTask.setConfigJson(JSONUtil.toBean(taskVersion.getTaskConfigure().getConfigJson(), TaskExtConfig.class));
         updateTask.setId(taskVersion.getTaskId());
         updateTask.setStep(JobLifeCycle.DEVELOP.getValue());
         return baseMapper.updateById(updateTask) > 0;
@@ -995,7 +1001,7 @@ public class TaskServiceImpl extends SuperServiceImpl<TaskMapper, Task> implemen
     @Override
     public LineageResult getTaskLineage(Integer id) {
         TaskDTO task = getTaskInfoById(id);
-        if (!Dialect.isCommonSql(task.getDialect())) {
+        if (Dialect.isCommonSql(task.getDialect())) {
             if (Asserts.isNull(task.getDatabaseId())) {
                 return null;
             }
@@ -1101,10 +1107,10 @@ public class TaskServiceImpl extends SuperServiceImpl<TaskMapper, Task> implemen
     private Boolean hasTaskOperatePermission(Integer firstLevelOwner, List<Integer> secondLevelOwners) {
         boolean isFirstLevelOwner = firstLevelOwner != null && firstLevelOwner == StpUtil.getLoginIdAsInt();
         if (TaskOwnerLockStrategyEnum.OWNER.equals(
-                SystemConfiguration.getInstances().getTaskOwnerLockStrategy())) {
+                SystemConfiguration.getInstances().getTaskOwnerLockStrategy().getValue())) {
             return isFirstLevelOwner;
         } else if (TaskOwnerLockStrategyEnum.OWNER_AND_MAINTAINER.equals(
-                SystemConfiguration.getInstances().getTaskOwnerLockStrategy())) {
+                SystemConfiguration.getInstances().getTaskOwnerLockStrategy().getValue())) {
             return isFirstLevelOwner
                     || (secondLevelOwners != null && secondLevelOwners.contains(StpUtil.getLoginIdAsInt()));
         }

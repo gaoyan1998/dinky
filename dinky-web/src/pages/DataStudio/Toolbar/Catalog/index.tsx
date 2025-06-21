@@ -32,22 +32,18 @@ import { Button, Col, Empty, Flex, Modal, Row, Select, Spin } from 'antd';
 import { DataNode } from 'antd/es/tree';
 import DirectoryTree from 'antd/es/tree/DirectoryTree';
 import { DefaultOptionType } from 'rc-select/lib/Select';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { getMSCatalogs, getMSColumns, getMSSchemaInfo } from './service';
 import { useAsyncEffect } from 'ahooks';
 import { CenterTab, DataStudioState } from '@/pages/DataStudio/model';
 import { mapDispatchToProps } from '@/pages/DataStudio/DvaFunction';
 import { isSql } from '@/pages/DataStudio/utils';
-import { TableDataNode } from '@/pages/DataStudio/Toolbar/Catalog/data';
+import { CatalogState, TableDataNode, ViewDataNode } from '@/pages/DataStudio/Toolbar/Catalog/data';
 import { DataStudioActionType } from '@/pages/DataStudio/data.d';
-
-type CatalogState = {
-  envId?: number;
-  databaseId?: number;
-  dialect?: string;
-  fragment?: boolean;
-  engine?: string;
-};
+import Search from 'antd/es/input/Search';
+import { useRightContext } from '@/pages/DataStudio/Toolbar/Catalog/RightContext';
+import { handleRightClick } from '@/pages/DataStudio/function';
+import type { Key } from 'rc-tree/lib/interface';
 
 const Catalog = (props: {
   tabs: CenterTab[];
@@ -65,6 +61,9 @@ const Catalog = (props: {
   const [row, setRow] = useState<TableDataNode>();
   const [loading, setLoading] = useState<boolean>(false);
   const [currentState, setCurrentState] = useState<CatalogState>();
+  const [searchValue, setSearchValue] = useState('');
+  const [selectKeys, setSelectKeys] = useState<Key[] | undefined>([]);
+  const [expandKeys, setExpandKeys] = useState<Key[] | undefined>([]);
 
   const currentData = tabs.find((tab) => activeTab == tab.id);
 
@@ -204,14 +203,17 @@ const Catalog = (props: {
           children: tablesData
         });
 
-        const viewsData: DataNode[] = [];
+        const viewsData: ViewDataNode[] = [];
         if (res.views) {
           for (let i = 0; i < res.views.length; i++) {
             viewsData.push({
               title: res.views[i],
               key: res.views[i],
               icon: <BlockOutlined />,
-              isLeaf: true
+              isLeaf: true,
+              isView: true,
+              schema: databaseTmp,
+              catalog: catalog
             });
           }
         }
@@ -335,6 +337,42 @@ const Catalog = (props: {
     setModalVisit(false);
     setTable('');
   };
+
+  const buildCatalogTree = (data: any, searchValue = ''): any =>
+    data.map((item: any) => {
+      return {
+        ...item,
+        children: item.children.filter((child: any) => child.title.indexOf(searchValue) > -1)
+      };
+    });
+
+  const onSearchChange = useCallback(
+    (e: { target: { value: React.SetStateAction<string> } }) => {
+      setSearchValue(e.target.value);
+    },
+    [searchValue]
+  );
+
+  const onSelect = (keys: Key[], info: any) => {
+    setSelectKeys(keys);
+    openColumnInfo(info.node);
+  };
+
+  const onExpand = (keys: Key[], info: any) => {
+    setExpandKeys(keys);
+  };
+
+  const { RightContent, setRightContextMenuState, handleCatalogRightClick } = useRightContext({
+    refreshMetaStoreTables,
+    catalogState: currentState
+  });
+
+  const rightContextMenuHandle = (e: any) => handleRightClick(e, setRightContextMenuState);
+
+  const onRightClick = (info: any) => {
+    handleCatalogRightClick(info);
+  };
+
   // <Empty description={l('pages.datastudio.catalog.openMission')}/>;
   return (
     <Spin spinning={loading} style={{ height: 'inherit' }}>
@@ -351,15 +389,28 @@ const Catalog = (props: {
             />
           </Col>
         </Row>
-
         {treeData.length > 0 ? (
-          <DirectoryTree
-            showIcon
-            switcherIcon={<DownOutlined />}
-            treeData={treeData}
-            onRightClick={({ node }: any) => openColumnInfo(node)}
-            onSelect={(_, info: any) => openColumnInfo(info.node)}
-          />
+          <>
+            <Search
+              style={{ margin: '8px 0px' }}
+              placeholder={l('global.search.text')}
+              onChange={onSearchChange}
+              allowClear={true}
+              defaultValue={searchValue}
+            />
+            <DirectoryTree
+              showIcon
+              switcherIcon={<DownOutlined />}
+              className={'treeList'}
+              treeData={buildCatalogTree(treeData, searchValue)}
+              onRightClick={onRightClick}
+              onContextMenu={rightContextMenuHandle}
+              onSelect={onSelect}
+              onExpand={onExpand}
+              selectedKeys={selectKeys}
+              expandedKeys={expandKeys}
+            />
+          </>
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
         )}
@@ -384,6 +435,7 @@ const Catalog = (props: {
       >
         <SchemaDesc tableInfo={row} />
       </Modal>
+      {RightContent}
     </Spin>
   );
 };
