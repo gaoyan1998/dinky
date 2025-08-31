@@ -38,6 +38,7 @@ import org.dinky.gateway.result.TestResult;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.configuration.DeploymentOptionsInternal;
 import org.apache.flink.configuration.HighAvailabilityOptions;
 import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.configuration.TaskManagerOptions;
@@ -74,6 +75,9 @@ public abstract class KubernetesOperatorGateway extends KubernetesGateway {
     public void init() {
         kubernetesConfiguration = config.getKubernetesConfig().getConfiguration();
         initConfig();
+        // operator not need this config, must be delete, or will throw exception
+        this.removeConfigParas(KubernetesConfigOptions.KUBE_CONFIG_FILE);
+
         initBase();
         initMetadata();
         initSpec();
@@ -204,8 +208,8 @@ public abstract class KubernetesOperatorGateway extends KubernetesGateway {
     }
 
     // flink config defined key
-    private final List<String> flinkConfigDefinedByFlink =
-            Lists.newArrayList("kubernetes.namespace", "kubernetes.cluster-id");
+    private final List<String> flinkConfigDefinedByFlink = Lists.newArrayList(
+            "kubernetes.namespace", "kubernetes.cluster-id", DeploymentOptionsInternal.CONF_DIR.key());
 
     private void initSpec() {
         String flinkVersion = flinkConfig.getFlinkVersion();
